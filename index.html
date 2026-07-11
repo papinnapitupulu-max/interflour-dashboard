@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INTERFLOUR Sales Supervisor Dashboard v2.0</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .grain-bg { background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.02) 1px, transparent 1px); background-size: 50px 50px; }
+        .metric-card { transition: all 0.3s ease; }
+        .metric-card:hover { transform: translateY(-2px); }
+        .sidebar-active { background-color: #1e3a5f; color: white; }
+        .tab-active { border-bottom: 3px solid #d4a574; color: #1e3a5f; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+    <script type="text/babel">
+        // ============================================
+        // STORAGE & DATA HELPERS
+        // ============================================
+        const Storage = {
+            get: (key, defaultValue = []) => {
+                try {
+                    return JSON.parse(localStorage.getItem(key)) || defaultValue;
+                } catch {
+                    return defaultValue;
+                }
+            },
+            set: (key, value) => {
+                localStorage.setItem(key, JSON.stringify(value));
+            }
+        };
+
+        const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+
+        // ============================================
+        // SEED DATA
+        // ============================================
+        const SEED_OUTLETS = [
+            { id: generateUUID(), name: "Sari Indah Bakery", owner: "Ibu Megawati", phone: "+62 812-3456-7890", address: "Jl. Raya Darmo No. 42", kecamatan: "Tegalsari", status: "Active", category: "Bakery", createdAt: "2026-01-10" },
+            { id: generateUUID(), name: "Golden Crust Artisanal", owner: "Bapak Rudi", phone: "+62 813-2468-135", address: "Jl. Ketintang No. 15", kecamatan: "Rungkut", status: "Active", category: "Bakery", createdAt: "2026-02-15" },
+            { id: generateUUID(), name: "Horeca Catering Ibu Tien", owner: "Ibu Tien", phone: "+62 812-9876-543", address: "Jl. Gubeng Masjid", kecamatan: "Gubeng", status: "Active", category: "HORECA", createdAt: "2026-01-20" },
+            { id: generateUUID(), name: "Toko Terigu Jaya", owner: "Pak Joko", phone: "+62 811-5555-666", address: "Jl. Karah No. 100", kecamatan: "Tegalsari", status: "Active", category: "Traditional Market", createdAt: "2026-03-01" },
+            { id: generateUUID(), name: "Retail Sejahtera", owner: "Ibu Siti", phone: "+62 812-7777-888", address: "Jl. Rungkut Kidul", kecamatan: "Rungkut", status: "Inactive", category: "Retail", createdAt: "2026-02-10" }
+        ];
+
+        const SEED_PRODUCTS = [
+            { id: generateUUID(), name: "Cakra Kembar Premium", category: "High Protein (Roti & Mie)", packaging: "25 kg Sack", ebpPrice: 295000, dbpPrice: 280000, promo: "Buy 20, get 1 free", isFavorite: true, stock: 450 },
+            { id: generateUUID(), name: "Segitiga Biru Serbaguna", category: "Medium Protein", packaging: "25 kg Sack", ebpPrice: 275000, dbpPrice: 260000, promo: "Discount IDR 5K/sack >10", isFavorite: true, stock: 600 },
+            { id: generateUUID(), name: "Kunci Biru", category: "Low Protein (Biskuit)", packaging: "25 kg Sack", ebpPrice: 280000, dbpPrice: 265000, promo: "New Formulation", isFavorite: true, stock: 350 },
+            { id: generateUUID(), name: "Gandum Mas Whole Wheat", category: "Specialty", packaging: "10 x 1kg Box", ebpPrice: 195000, dbpPrice: 182000, promo: "5% intro discount", isFavorite: false, stock: 120 }
+        ];
+
+        const SEED_VISITS = [
+            { id: generateUUID(), outletId: SEED_OUTLETS[0]?.id, outletName: "Sari Indah Bakery", date: new Date().toISOString().split('T')[0], scheduledTime: "09:00", status: "Completed", salesName: "Joko Susilo", notes: "Stock checked, order placed" },
+            { id: generateUUID(), outletId: SEED_OUTLETS[1]?.id, outletName: "Golden Crust Artisanal", date: new Date().toISOString().split('T')[0], scheduledTime: "11:00", status: "In Progress", salesName: "Dewi Lestari", notes: "Display audit ongoing" }
+        ];
+
+        const SEED_PROSPECTS = [
+            { id: generateUUID(), outletName: "Kue Lezat Baru", owner: "Pak Bambang", phone: "+62 812-1234-567", stage: "Contacted", estimatedValue: 5000000, category: "Bakery", kecamatan: "Tegalsari", createdAt: "2026-07-01" },
+            { id: generateUUID(), outletName: "Cafe Nyaman", owner: "Ibu Rina", phone: "+62 813-8888-999", stage: "Negotiation", estimatedValue: 8000000, category: "HORECA", kecamatan: "Gubeng", createdAt: "2026-07-05" }
+        ];
+
+        // ============================================
+        // MAIN APP COMPONENT
+        // ============================================
+        function InterflourDashboard() {
+            const [activeTab, setActiveTab] = React.useState("dashboard");
+            const [outlets, setOutlets] = React.useState(() => Storage.get("intfl_outlets", SEED_OUTLETS));
+            const [products, setProducts] = React.useState(() => Storage.get("intfl_products", SEED_PRODUCTS));
+            const [visits, setVisits] = React.useState(() => Storage.get("intfl_visits", SEED_VISITS));
+            const [prospects, setProspects] = React.useState(() => Storage.get("intfl_prospects", SEED_PROSPECTS));
+            const [chatMessages, setChatMessages] = React.useState([]);
+            const [chatInput, setChatInput] = React.useState("");
+            const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
+            // Save to storage whenever data changes
+            React.useEffect(() => { Storage.set("intfl_outlets", outlets); }, [outlets]);
+            React.useEffect(() => { Storage.set("intfl_products", products); }, [products]);
+            React.useEffect(() => { Storage.set("intfl_visits", visits); }, [visits]);
+            React.useEffect(() => { Storage.set("intfl_prospects", prospects); }, [prospects]);
+
+            // Metrics calculation
+            const metrics = React.useMemo(() => {
+                const activeCount = outlets.filter(o => o.status === "Active").length;
+                const totalOutlets = outlets.length;
+                const todayVisits = visits.filter(v => v.date === new Date().toISOString().split('T')[0]).length;
+                const totalOrders = Math.floor(Math.random() * 50) + 20;
+                return { activeCount, totalOutlets, todayVisits, totalOrders };
+            }, [outlets, visits]);
+
+            // AI Chat handler
+            const handleSendMessage = () => {
+                if (!chatInput.trim()) return;
+                const userMsg = { sender: "user", text: chatInput };
+                setChatMessages(prev => [...prev, userMsg]);
+
+                setTimeout(() => {
+                    const responses = [
+                        `Analisis outlet Anda: ${metrics.activeCount} dari ${metrics.totalOutlets} outlet sedang aktif. Rekomendasi: tingkatkan visit frequency untuk kategori Bakery.`,
+                        `Produk terlaris bulan ini: Cakra Kembar Premium (+15% vs bulan lalu). Saran: stok tambahan untuk HORECA channel.`,
+                        `Prospek dalam Negotiation stage: ${prospects.filter(p => p.stage === "Negotiation").length}. Target close rate: 70%.`
+                    ];
+                    const aiMsg = { sender: "ai", text: responses[Math.floor(Math.random() * responses.length)] };
+                    setChatMessages(prev => [...prev, aiMsg]);
+                }, 500);
+
+                setChatInput("");
+            };
+
+            const navItems = [
+                { id: "dashboard", label: "📊 Dashboard", icon: "📊" },
+                { id: "outlets", label: "🏪 Outlets", icon: "🏪" },
+                { id: "visits", label: "📅 Visits", icon: "📅" },
+                { id: "products", label: "📦 Products", icon: "📦" },
+                { id: "prospects", label: "🎯 Prospects", icon: "🎯" },
+                { id: "chat", label: "💬 AI Chat", icon: "💬" }
+            ];
+
+            return (
+                <div className="flex flex-col md:flex-row h-screen bg-gray-50">
+                    {/* SIDEBAR - Mobile & Desktop */}
+                    <div className={`fixed inset-0 z-40 md:static md:w-64 md:h-screen bg-white border-r border-gray-200 transform transition-transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+                        <div className="p-6 border-b border-gray-200">
+                            <h1 className="text-2xl font-bold text-blue-900">INTERFLOUR</h1>
+                            <p className="text-xs text-gray-500 mt-1">Sales Supervisor v2.0</p>
+                        </div>
+                        <nav className="p-4 space-y-2">
+                            {navItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => {
+                                        setActiveTab(item.id);
+                                        setMobileMenuOpen(false);
+                                    }}
+                                    className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all ${activeTab === item.id ? 'bg-blue-900 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                                    <span className="mr-2">{item.icon}</span>{item.label}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
+
+                    {/* MOBILE MENU TOGGLE */}
+                    <button
+                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                        className="md:hidden fixed top-4 left-4 z-50 bg-blue-900 text-white p-2 rounded-lg"
+                    >
+                        ☰
+                    </button>
+
+                    {/* MAIN CONTENT */}
+                    <div className="flex-1 flex flex-col overflow-hidden md:mt-0 mt-16">
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+                            {/* Dashboard Tab */}
+                            {activeTab === "dashboard" && (
+                                <div className="space-y-6">
+                                    <div>
+                                        <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
+                                        <p className="text-gray-500 mt-1">Welcome back, Sales Supervisor</p>
+                                    </div>
+
+                                    {/* Metrics Cards */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <div className="metric-card bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                                            <p className="text-gray-500 text-sm font-medium">Active Outlets</p>
+                                            <p className="text-4xl font-bold text-blue-900 mt-2">{metrics.activeCount}</p>
+                                            <p className="text-xs text-gray-400 mt-2">of {metrics.totalOutlets} total</p>
+                                        </div>
+                                        <div className="metric-card bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                                            <p className="text-gray-500 text-sm font-medium">Today's Visits</p>
+                                            <p className="text-4xl font-bold text-amber-600 mt-2">{metrics.todayVisits}</p>
+                                            <p className="text-xs text-gray-400 mt-2">PJP scheduled</p>
+                                        </div>
+                                        <div className="metric-card bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                                            <p className="text-gray-500 text-sm font-medium">Pending Prospects</p>
+                                            <p className="text-4xl font-bold text-green-600 mt-2">{prospects.length}</p>
+                                            <p className="text-xs text-gray-400 mt-2">in pipeline</p>
+                                        </div>
+                                        <div className="metric-card bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                                            <p className="text-gray-500 text-sm font-medium">Monthly Target</p>
+                                            <p className="text-4xl font-bold text-indigo-600 mt-2">82%</p>
+                                            <p className="text-xs text-gray-400 mt-2">achievement</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Top Outlets & Latest Visits */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                                            <h3 className="font-bold text-gray-900 mb-4">Top Active Outlets</h3>
+                                            <div className="space-y-3">
+                                                {outlets.filter(o => o.status === "Active").slice(0, 4).map(outlet => (
+                                                    <div key={outlet.id} className="flex justify-between items-start border-b pb-3">
+                                                        <div>
+                                                            <p className="font-medium text-gray-900">{outlet.name}</p>
+                                                            <p className="text-xs text-gray-500">{outlet.category} • {outlet.kecamatan}</p>
+                                                        </div>
+                                                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">{outlet.status}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                                            <h3 className="font-bold text-gray-900 mb-4">Today's Visits Status</h3>
+                                            <div className="space-y-3">
+                                                {visits.slice(0, 4).map(visit => (
+                                                    <div key={visit.id} className="flex justify-between items-start border-b pb-3">
+                                                        <div>
+                                                            <p className="font-medium text-gray-900">{visit.outletName}</p>
+                                                            <p className="text-xs text-gray-500">{visit.salesName} • {visit.scheduledTime}</p>
+                                                        </div>
+                                                        <span className={`text-xs px-2 py-1 rounded ${visit.status === "Completed" ? 'bg-green-100 text-green-800' : visit.status === "In Progress" ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                            {visit.status}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Outlets Tab */}
+                            {activeTab === "outlets" && (
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-3xl font-bold text-gray-900">Outlets Management</h2>
+                                        <button className="bg-blue-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-800">+ Add Outlet</button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {outlets.map(outlet => (
+                                            <div key={outlet.id} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <h3 className="font-bold text-gray-900">{outlet.name}</h3>
+                                                        <p className="text-sm text-gray-500">{outlet.owner}</p>
+                                                    </div>
+                                                    <span className={`text-xs font-medium px-3 py-1 rounded ${outlet.status === "Active" ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                        {outlet.status}
+                                                    </span>
+                                                </div>
+                                                <div className="space-y-2 text-sm text-gray-600">
+                                                    <p>📱 {outlet.phone}</p>
+                                                    <p>📍 {outlet.address}</p>
+                                                    <p>🏷️ {outlet.category}</p>
+                                                </div>
+                                                <div className="mt-4 flex gap-2">
+                                                    <button className="flex-1 bg-amber-100 text-amber-900 py-2 rounded font-medium text-sm hover:bg-amber-200">Edit</button>
+                                                    <button className="flex-1 bg-gray-100 text-gray-900 py-2 rounded font-medium text-sm hover:bg-gray-200">View</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Visits Tab */}
+                            {activeTab === "visits" && (
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-3xl font-bold text-gray-900">PJP Visit Planning</h2>
+                                        <button className="bg-blue-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-800">+ Schedule Visit</button>
+                                    </div>
+
+                                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-gray-50 border-b border-gray-200">
+                                                <tr>
+                                                    <th className="px-6 py-3 text-left font-medium text-gray-700">Outlet</th>
+                                                    <th className="px-6 py-3 text-left font-medium text-gray-700">Date</th>
+                                                    <th className="px-6 py-3 text-left font-medium text-gray-700">Time</th>
+                                                    <th className="px-6 py-3 text-left font-medium text-gray-700">Sales Rep</th>
+                                                    <th className="px-6 py-3 text-left font-medium text-gray-700">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200">
+                                                {visits.map(visit => (
+                                                    <tr key={visit.id} className="hover:bg-gray-50">
+                                                        <td className="px-6 py-4 font-medium text-gray-900">{visit.outletName}</td>
+                                                        <td className="px-6 py-4 text-gray-600">{visit.date}</td>
+                                                        <td className="px-6 py-4 text-gray-600">{visit.scheduledTime}</td>
+                                                        <td className="px-6 py-4 text-gray-600">{visit.salesName}</td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`text-xs font-medium px-3 py-1 rounded ${visit.status === "Completed" ? 'bg-green-100 text-green-800' : visit.status === "In Progress" ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                                {visit.status}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Products Tab */}
+                            {activeTab === "products" && (
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-3xl font-bold text-gray-900">Product Catalog</h2>
+                                        <button className="bg-blue-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-800">+ Add Product</button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {products.map(product => (
+                                            <div key={product.id} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <h3 className="font-bold text-gray-900">{product.name}</h3>
+                                                    {product.isFavorite && <span className="text-xl">⭐</span>}
+                                                </div>
+                                                <p className="text-sm text-gray-500 mb-4">{product.category}</p>
+                                                <div className="space-y-2 text-sm mb-4">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">Packaging:</span>
+                                                        <span className="font-medium text-gray-900">{product.packaging}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">EBP Price:</span>
+                                                        <span className="font-medium text-gray-900">IDR {product.ebpPrice.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">Stock:</span>
+                                                        <span className="font-medium text-green-600">{product.stock} units</span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs text-amber-600 mb-3">💡 {product.promo}</p>
+                                                <button className="w-full bg-amber-100 text-amber-900 py-2 rounded font-medium hover:bg-amber-200">View Details</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Prospects Tab */}
+                            {activeTab === "prospects" && (
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-3xl font-bold text-gray-900">Prospects Pipeline</h2>
+                                        <button className="bg-blue-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-800">+ Add Prospect</button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {[`}, 
